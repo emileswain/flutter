@@ -880,6 +880,78 @@ class FileImage extends ImageProvider<FileImage> {
   String toString() => '${objectRuntimeType(this, 'FileImage')}("${file?.path}", scale: $scale)';
 }
 
+/// Decodes the given [File] object as an image, associating it with the given
+/// scale and updates when file is modified.
+///
+/// See also:
+///
+///  * [Image.fileModifiable] for a shorthand of an [Image] widget backed by [FileImageModifiable].
+@immutable
+class FileImageModifiable extends ImageProvider<FileImageModifiable> {
+  /// Creates an object that decodes a [File] as an image.
+  ///
+  /// The arguments must not be null.
+  const FileImageModifiable(this.file, { this.scale = 1.0, this.lastModified = -1 })
+    : assert(file != null),
+      assert(scale != null),
+      assert(lastModified != null);
+
+  /// The file to decode into an image.
+  final File file;
+
+  /// The scale to place in the [ImageInfo] object of the image.
+  final double scale;
+
+  /// The last Modified date
+  final int lastModified;
+
+  @override
+  Future<FileImageModifiable> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<FileImageModifiable>(this);
+  }
+
+  @override
+  ImageStreamCompleter load(FileImageModifiable key, DecoderCallback decode) {
+    return MultiFrameImageStreamCompleter(
+      codec: _loadAsync(key, decode),
+      scale: key.scale,
+      informationCollector: () sync* {
+        yield ErrorDescription('Path: ${file?.path}');
+      },
+    );
+  }
+
+  Future<ui.Codec> _loadAsync(FileImageModifiable key, DecoderCallback decode) async {
+    assert(key == this);
+
+    final Uint8List bytes = await file.readAsBytes();
+
+    if (bytes.lengthInBytes == 0) {
+      // The file may become available later.
+      PaintingBinding.instance.imageCache.evict(key);
+      throw StateError('$file is empty and cannot be loaded as an image.');
+    }
+
+    return await decode(bytes);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType)
+      return false;
+    return other is FileImageModifiable
+        && other.file?.path == file?.path
+        && other.scale == scale
+        && other.lastModified == lastModified;
+  }
+
+  @override
+  int get hashCode => hashValues(file?.path, scale, lastModified);
+
+  @override
+  String toString() => '${objectRuntimeType(this, 'FileImageModifiable')}("${file?.path}", scale: $scale, lastModified: $lastModified)';
+}
+
 /// Decodes the given [Uint8List] buffer as an image, associating it with the
 /// given scale.
 ///
